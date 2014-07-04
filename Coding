@@ -1,0 +1,1942 @@
+/*
+ 
+ */
+  
+  #include <PID_v1.h>
+  #include <glcd.h>                // include the library header
+  #include <fonts/allFonts.h>      // include the Fonts
+  
+  #define RelayPin 3
+  
+  //******************************************************************************************************************************************************************************
+  //**************************************                           Declaring PID Controller P                          *********************************************************
+  //******************************************************************************************************************************************************************************
+  
+  //Define Variables we'll be connecting to
+  double Setpoint, Input, Output;
+  
+  //Specify the links and initial tuning parameters
+  PID myPID(&Input, &Output, &Setpoint,2,5,1, DIRECT);
+  
+  int WindowSize = 2000;                    // Updated window size according to Rocket scream's setting.
+  unsigned long windowStartTime;
+
+  //******************************************************************************************************************************************************************************
+  
+  const int ESC_Button   = 0;
+  const int UP_Button    = 1;
+  const int DWN_Button   = 12;
+  const int ENT_Button   = 13;
+
+  const int ledPin =  13;          // the number of the LED pin
+  int sensorPin    =  A5;          // select the input pin for the potentiometer
+  
+  int FanPin       =   2;
+  
+  //******************************************************************************************************************************************************************************
+  //**************************************                           Declaring Global Variables                          *********************************************************
+  //******************************************************************************************************************************************************************************
+  
+  int ESC_Button_State            = 0;
+  int Previous_ESC_Button_State   = 0;
+  
+  int UP_Button_State             = 0;
+  int Previous_UP_Button_State    = 0;  
+  
+  int DWN_Button_State            = 0;
+  int Previous_DWN_Button_State   = 0;
+  
+  int ENT_Button_State            = 0;
+  int Previous_ENT_Button_State   = 0;
+
+  int ENT_Through_Preset          = 0;  
+  int UP_DOWN_Selector            = 1;
+  int ENT_ESC_Selector            = 1;
+
+  //***************************************************************************************************************************************************************************** 
+
+  int PREH_Temp       = 150;
+  int HEAT_Temp       = 180;
+  int SLDR_Temp       = 210;
+  int KEEP_Temp       = 180;
+  int COOL_Temp       = 150;
+  
+  int PREH_Keep_SEC   = 10;
+  int PREH_Keep_MIN;
+  
+  int HEAT_Keep_SEC   = 10;
+  int HEAT_Keep_MIN;
+  
+  int SLDR_Keep_SEC   = 10;
+  int SLDR_Keep_MIN;
+  
+  String Status;    
+  String Status1 = "PREH";
+  String Status2 = "HEAT";    
+  String Status3 = "SLDR";    
+  String Status4 = "KEEP";
+  String Status5 = "COOL";
+  String Status6 = "DONE";
+     
+  int     Temp;
+  int     Seconds;
+  int     Minutes;
+  int     Seconds2;
+  int     Minutes2;
+  int     ENT_Through_Status;
+  int     X_Status_Limit;
+  
+  int Temp_Step;
+  int Previous_Temp_Step_State;
+  int X;
+  int Y;  
+
+  //***************************************************************************************************************************************************************************** 
+
+  void setup() 
+  {
+    GLCD.Init(NON_INVERTED);     // Initialize the GLCD 
+    GLCD.ClearScreen(); 
+    GLCD.Init();
+
+  //******************************************************************************************************************************************************************************
+  
+    windowStartTime = millis();
+    
+    //tell the PID to range between 0 and the full window size
+    myPID.SetOutputLimits(0, WindowSize);
+
+  //******************************************************************************************************************************************************************************
+  
+    analogReference(EXTERNAL);                                            // Sets analog input max voltage to Aref voltage, with the pod I've used the input is 3V
+    
+    pinMode ( ESC_Button, INPUT );
+    pinMode ( UP_Button,  INPUT );
+    pinMode ( DWN_Button, INPUT );
+    pinMode ( ENT_Button, INPUT );
+    
+    pinMode(ledPin, OUTPUT);
+    pinMode(FanPin, OUTPUT);   
+ 
+    Temp_Step                = 10;
+    Previous_Temp_Step_State =  0;    
+    X                        =  5;
+    Y                        = 48;     
+  }
+
+  void loop()
+  {          
+    
+       Read_Buttons();        
+       Draw_Menu_Blocks();
+       
+       if( ENT_ESC_Selector  == 1)
+       {
+         GLCD.SelectFont(System5x7, WHITE);                                                                       
+         GLCD.CursorToXY(50, 3);
+         GLCD.print("MENU:");   
+       }
+       
+        Test_UP_DOWN_Counter();
+        Test_ENT_ESC_Counter_Value();
+        
+        if( ENT_ESC_Selector  <= 1 )
+        {
+          ENT_ESC_Selector = 1;
+        }       
+       
+        if( ENT_ESC_Selector  >=3 )
+        {
+          ENT_ESC_Selector = 1;
+        }            
+            
+        if (UP_DOWN_Selector < 1 )
+        {
+          UP_DOWN_Selector = 4;
+        }
+
+        if ( UP_DOWN_Selector > 4 )
+        {
+          UP_DOWN_Selector = 1;
+        } 
+                
+        Main_Menu_Case_Switch();
+        
+
+  //**************************************************************************************************************************************************************************** 
+  //****************************************************************************************************************************************************************************
+  //**************************************                         Entering Submenu View Program                        ********************************************************
+  //****************************************************************************************************************************************************************************
+  //****************************************************************************************************************************************************************************
+
+     
+        if( ENT_ESC_Selector  == 2 && UP_DOWN_Selector == 1 )
+        {
+          UP_DOWN_Selector = 1;
+          GLCD.ClearScreen();
+
+                 
+          while( ENT_ESC_Selector  == 2 ) 
+          {
+            Read_Buttons();
+    
+            GLCD.DrawLine( 31, 52,  31, 62);    // Lines to draw four blocks at the bottom.
+            GLCD.DrawLine( 63, 52,  63, 62);
+            GLCD.DrawLine( 94, 52,  94, 62);            
+              
+            Test_UP_DOWN_Counter();
+            Test_ENT_ESC_Counter_Value();
+            
+            if (UP_DOWN_Selector < 1 )
+            {
+              UP_DOWN_Selector = 4;
+            }
+            if (UP_DOWN_Selector > 4 )
+            {
+              UP_DOWN_Selector = 1;
+            }            
+                
+            View_Program();              
+          }
+          GLCD.ClearScreen();
+          Draw_Menu_Blocks(); 
+        }
+        
+  //**************************************************************************************************************************************************************************** 
+  //****************************************************************************************************************************************************************************
+  //**************************************                         Entering Submenu Edit Programs                        *******************************************************
+  //****************************************************************************************************************************************************************************
+  //****************************************************************************************************************************************************************************
+ //*****************************************************************************************************************************************************************************   
+    
+        if( ENT_ESC_Selector  == 2 && UP_DOWN_Selector == 2 )
+        {
+              UP_DOWN_Selector = 1;
+              GLCD.ClearScreen();
+              ENT_Through_Preset = 1;
+          
+              while( ENT_ESC_Selector  == 2 ) 
+              {
+                Read_Buttons();
+    
+                GLCD.DrawLine( 31, 52,  31, 62);    // Lines to draw four blocks at the bottom.
+                GLCD.DrawLine( 63, 52,  63, 62);
+                GLCD.DrawLine( 94, 52,  94, 62);
+                
+                Test_ENT_ESC_Counter_Value();
+                
+                View_Program(); 
+                
+                Not_Highlighted_Up_Button();
+                Not_Highlighted_Down_Button();
+                                
+                Edit_Program();
+                
+              }
+              
+              GLCD.ClearScreen();
+              Draw_Menu_Blocks();    
+             }
+
+  //**************************************************************************************************************************************************************************** 
+  //****************************************************************************************************************************************************************************
+  //**************************************                              RUNNING CYCLE SCREEN                             *******************************************************
+  //****************************************************************************************************************************************************************************
+  //****************************************************************************************************************************************************************************
+        
+        if( ENT_ESC_Selector  == 2 && UP_DOWN_Selector == 3 )
+        {        
+          GLCD.ClearScreen();
+          
+          while( ENT_ESC_Selector  == 2 ) 
+          {
+            Read_Buttons();    
+           
+            RunningCycleScreen();            
+            
+            if ( ESC_Button_State == LOW ) 
+            {
+              digitalWrite(ledPin, HIGH); 
+              ENT_ESC_Selector--;
+              GLCD.ClearScreen(); 
+             
+              if ( ENT_ESC_Selector < 0 )
+              {
+                ENT_ESC_Selector = 0;
+              }
+            }
+              
+            ESC_Button_State   = 0;
+            UP_DOWN_Selector   = 1;
+            digitalWrite(ledPin, LOW); 
+
+          }  
+        }
+  }
+
+  //****************************************************************************************************************************************************************************
+  //**************************************                    Menu Case Switch - Used to draw sub menu                   *******************************************************
+  //****************************************************************************************************************************************************************************
+
+  void Main_Menu_Case_Switch() 
+  {
+    switch ( UP_DOWN_Selector )
+    {
+        case 1:
+          Menu_Line1_Highlighted();  
+          Menu_Line2_Not_Highlighted(); 
+          Menu_Line3_Not_Highlighted(); 
+          Menu_Line4_Not_Highlighted(); 
+          break;                                                 // Break used to break main menu          
+                 
+        case 2:
+          Menu_Line1_Not_Highlighted();  
+          Menu_Line2_Highlighted(); 
+          Menu_Line3_Not_Highlighted(); 
+          Menu_Line4_Not_Highlighted();   
+          break;  
+          
+        case 3:
+          Menu_Line1_Not_Highlighted();  
+          Menu_Line2_Not_Highlighted(); 
+          Menu_Line3_Highlighted(); 
+          Menu_Line4_Not_Highlighted();   
+          break; 
+
+          case 4:
+          Menu_Line1_Not_Highlighted();  
+          Menu_Line2_Not_Highlighted(); 
+          Menu_Line3_Not_Highlighted(); 
+          Menu_Line4_Highlighted();             
+    }  
+  }    
+        
+  //****************************************************************************************************************************************************************************
+  //**************************************                       Code to draw up the menu                                *******************************************************
+  //****************************************************************************************************************************************************************************
+  
+  
+  void Draw_Menu_Blocks()
+  {
+    // Part above menu   
+   
+    GLCD.DrawRect( 0,  0, 127, 63);  // draw an open rectangle that spans the extremties of the LCD
+    
+    GLCD.FillRect( 47,  2,   2,  8);  // Klein reg hoek om die Text beter te laat lyk, aan die linker kant
+    GLCD.DrawLine( 49,  2,  79,  2);  // Lyn bo die text om dit beter te laat lyk
+    GLCD.DrawLine( 0, 12, 126, 12);  // Lyn om 'n blokkie te maak       
+    GLCD.DrawLine( 0, 51, 126, 51);  // Lyn om 'n blokkie te maak 
+  
+    GLCD.DrawLine( 31, 52,  31, 62);    // Lines to draw four blocks at the bottom.
+    GLCD.DrawLine( 63, 52,  63, 62);
+    GLCD.DrawLine( 94, 52,  94, 62); 
+  
+    // Menu buttons at the bottom of the display. 
+  
+    GLCD.SelectFont(System5x7, BLACK);                                                                       
+    GLCD.CursorToXY(8, 54);             // Write ESC in the first block
+    GLCD.print("ESC");  
+         
+    GLCD.DrawLine( 47, 54,  47, 60);    // Draw Up arrow in second block from left
+    GLCD.DrawLine( 46, 55,  48, 55);
+    GLCD.DrawLine( 45, 56,  49, 56);
+    
+    GLCD.DrawLine( 78, 54,  78, 60);    //  Draw Down arrow in third block from left
+    GLCD.DrawLine( 77, 59,  79, 59);
+    GLCD.DrawLine( 76, 58,  80, 58);
+  
+    GLCD.CursorToXY(103, 54);            // Write ENT in thte last block
+    GLCD.print("ENT");   
+  
+  }
+
+  
+  //****************************************************************************************************************************************************************************
+  //****************************                                            Read Button Inputs                                       *******************************************
+  //****************************************************************************************************************************************************************************
+
+  
+  void Read_Buttons()
+  {  
+    ESC_Button_State            = digitalRead(ESC_Button);
+    UP_Button_State             = digitalRead(UP_Button);
+    DWN_Button_State            = digitalRead(DWN_Button);  
+    ENT_Button_State            = digitalRead(ENT_Button);        
+  }
+
+
+  //****************************************************************************************************************************************************************************
+  //****************************     Test_ENT_ESC_Counter_Value to determine whether ENT or ESC was pressed to use in case function    *****************************************
+  //****************************************************************************************************************************************************************************
+  
+  
+  void Test_ENT_ESC_Counter_Value ()
+  {
+    Not_Highlighted_Escape_Button();
+    Not_Highlighted_Enter_Button();
+    
+    if ( ESC_Button_State != Previous_ESC_Button_State && ESC_Button_State == LOW )   // Can't use a external pull down resistor on this button, so you use the internal pull-up resistor and read for a digital low since when the button is not pushed, your getting in a digital high.
+    {
+      digitalWrite(ledPin, HIGH); 
+      delay(150);
+      ENT_ESC_Selector--;
+      
+      if ( ENT_ESC_Selector < 0 )
+      {
+        ENT_ESC_Selector = 0;
+      }
+    }
+    
+    Previous_ESC_Button_State = ESC_Button_State;
+    digitalWrite(ledPin, LOW); 
+  
+    if ( ENT_Button_State != Previous_ENT_Button_State && ENT_Button_State == HIGH )
+    {
+        digitalWrite(ledPin, HIGH); 
+        delay(150); 
+        ENT_ESC_Selector++;
+        
+        if (ENT_ESC_Selector > 4 )
+        {
+          ENT_ESC_Selector = 4;
+        }
+    }
+        
+    Previous_ENT_Button_State = ENT_Button_State;   
+    digitalWrite(ledPin, LOW); 
+  }
+ 
+ 
+  //****************************************************************************************************************************************************************************
+  //****************************     Tests Main Menu Line Counter Value to determine which line in the menu should be highlighted    *******************************************
+  //****************************************************************************************************************************************************************************
+ 
+  
+void Test_UP_DOWN_Counter ()
+  {
+    Not_Highlighted_Up_Button();    
+    Not_Highlighted_Down_Button();
+    
+    if ( UP_Button_State != Previous_UP_Button_State && UP_Button_State == LOW )
+    {
+        digitalWrite(ledPin, HIGH);  
+        delay(150);
+        UP_DOWN_Selector--;
+    }
+    
+    Previous_UP_Button_State = UP_Button_State;
+    digitalWrite(ledPin, LOW);  
+    
+    if ( DWN_Button_State != Previous_DWN_Button_State && DWN_Button_State == HIGH )
+    {
+        digitalWrite(ledPin, HIGH);  
+        delay(150);      
+        UP_DOWN_Selector++;                
+    }    
+        
+    Previous_DWN_Button_State = DWN_Button_State; 
+    digitalWrite(ledPin, LOW); 
+        
+  }
+ 
+  //****************************************************************************************************************************************************************************
+  //**************************************                         NOT Highlighted Buttons                               *******************************************************
+  //****************************************************************************************************************************************************************************
+  
+  
+  void Not_Highlighted_Escape_Button() 
+  {
+  
+    GLCD.SelectFont(System5x7, BLACK);      // Highlighteds Escape button when pressed.
+    GLCD.CursorToXY(8, 54);                 // Write ESC in the first block
+    GLCD.print("ESC");    
+    GLCD.DrawRoundRect( 5, 53, 21,  8, 2, WHITE);   // rounded rectangle around text area    
+    GLCD.DrawLine     ( 7, 54,  7, 60,    WHITE); 
+    GLCD.DrawLine     ( 6, 54,  6, 60,    WHITE); 
+    
+  }
+   
+  void Not_Highlighted_Up_Button() 
+  {
+    
+    GLCD.DrawRoundRect( 37, 53, 21, 8, 2,WHITE);  // rounded rectangle around text area    
+    GLCD.FillRect( 38, 54, 19, 7,        WHITE );
+    GLCD.DrawLine( 47, 54,  47, 60,      BLACK);    // Draw Up arrow in second block from left
+    GLCD.DrawLine( 46, 55,  48, 55,      BLACK);
+    GLCD.DrawLine( 45, 56,  49, 56,      BLACK);
+    
+  }
+  
+  void Not_Highlighted_Down_Button()
+  {
+    
+    GLCD.DrawRoundRect( 68, 53, 21, 8, 2,WHITE);  // rounded rectangle around text area    
+    GLCD.FillRect( 69, 54, 19, 7 ,       WHITE);
+    GLCD.DrawLine( 78, 54,  78, 60,      BLACK); //  Draw Down arrow in third block from left
+    GLCD.DrawLine( 77, 59,  79, 59,      BLACK);
+    GLCD.DrawLine( 76, 58,  80, 58,      BLACK);
+  
+  }
+  
+  void Not_Highlighted_Enter_Button()
+  {
+    
+    GLCD.SelectFont(System5x7, BLACK);      // Highlighteds Enter button when pressed.
+    GLCD.CursorToXY(103, 54);               // Write ENT in thte last block
+    GLCD.print("ENT");  
+    GLCD.DrawRoundRect( 100, 53, 21, 8, 2,WHITE); // rounded rectangle around text area    
+    GLCD.DrawLine( 101, 54, 101, 60,      WHITE); 
+    GLCD.DrawLine( 102, 54, 102, 60,      WHITE); 
+  
+  }
+
+  
+  //****************************************************************************************************************************************************************************
+  //**************************************                         Menu lines highlighted                                *******************************************************
+  //****************************************************************************************************************************************************************************
+
+
+  void Menu_Line1_Highlighted()
+  {
+    GLCD.DrawLine( 1, 14, 126, 14, BLACK);
+    GLCD.SelectFont(System5x7,     WHITE);                                                                       
+    GLCD.CursorToXY( 1, 15 );
+    GLCD.print("     VIEW PROGRAM    ");   
+  }
+  
+  void Menu_Line2_Highlighted()
+  {
+    GLCD.DrawLine( 1, 23, 126, 23, BLACK);    
+    GLCD.SelectFont(System5x7,     WHITE);                                                                       
+    GLCD.CursorToXY( 1, 24 );
+    GLCD.print("     EDIT PROGRAM    ");
+  }
+  
+  void Menu_Line3_Highlighted()
+  {
+    GLCD.DrawLine  (  1, 32, 126, 32, BLACK); 
+    GLCD.FillRect  (  1, 33,   2,  7, BLACK); 
+    GLCD.FillRect  (124, 33,   2,  7, BLACK);     
+    GLCD.SelectFont(System5x7,        WHITE);                                                                       
+    GLCD.CursorToXY( 4, 33 );
+    GLCD.print("     RUN PROGRAM    "); 
+  }
+  
+  void Menu_Line4_Highlighted()  
+  {
+    GLCD.DrawLine( 1, 41, 126, 41, BLACK);
+    GLCD.FillRect  (  1, 42,   2,  7, BLACK);    
+    GLCD.FillRect  (124, 42,   2,  7, BLACK); 
+    GLCD.SelectFont(System5x7,     WHITE);                                                                       
+    GLCD.CursorToXY( 4, 42 );
+    GLCD.print("        ABOUT       ");
+  }
+   
+  
+  //****************************************************************************************************************************************************************************
+  //**************************************                         Menu lines NOT highlighted                            *******************************************************
+  //****************************************************************************************************************************************************************************
+
+
+  void Menu_Line1_Not_Highlighted()
+  {
+    GLCD.DrawLine( 1, 14, 126, 14, WHITE);
+    GLCD.SelectFont(System5x7,     BLACK);                                                                       
+    GLCD.CursorToXY( 1, 15 );
+    GLCD.print("     VIEW PROGRAM    ");   
+  }
+  
+  void Menu_Line2_Not_Highlighted()
+  {
+    GLCD.DrawLine( 1, 23, 126, 23, WHITE);    
+    GLCD.SelectFont(System5x7,     BLACK);                                                                       
+    GLCD.CursorToXY( 1, 24 );
+    GLCD.print("     EDIT PROGRAM    ");
+  }
+  
+  void Menu_Line3_Not_Highlighted()
+  {
+    GLCD.DrawLine  (  1, 32, 126, 32, WHITE);  
+    GLCD.FillRect  (  1, 33,   2,  7, WHITE); 
+    GLCD.FillRect  (124, 33,   2,  7, WHITE);    
+    GLCD.SelectFont(System5x7,        BLACK);   
+    GLCD.CursorToXY( 4, 33 );
+    GLCD.print("     RUN PROGRAM    ");     
+
+  }
+  
+  void Menu_Line4_Not_Highlighted()  
+  {
+    GLCD.DrawLine  (  1, 41, 126, 41, WHITE);
+    GLCD.FillRect  (  1, 42,   2,  7, WHITE);    
+    GLCD.FillRect  (124, 42,   2,  7, WHITE); 
+    GLCD.SelectFont(System5x7       , BLACK);                                                                       
+    GLCD.CursorToXY( 4, 42 );
+    GLCD.print("        ABOUT       ");
+  }
+
+  //****************************************************************************************************************************************************************************
+  //**************************************             Displays the Running Cycle of the Reflow Cycle                   ********************************************************
+  //****************************************************************************************************************************************************************************
+
+  void RunningCycleScreen()
+  {
+    int KEEP_SEC = 0;
+    int COOL_SEC = 0;
+
+    GLCD.DrawRect( 0,  0, 127, 63);  // draw an open rectangle that spans the extremties of the LCD
+    
+    Status  = Status1;
+    Minutes = PREH_Keep_MIN;    
+    Seconds = PREH_Keep_SEC;   
+    
+    Temp = analogRead(sensorPin) / 3.4133;   /// Devides 1024 / 300 to range the ADC value to the actual temperature range. (1024 = 3 V as set by AREF since the max output voltage from the thermocouple amp is 3 V for 300 Deg C)  
+    Input = Temp;
+
+    //****************************************************************************************************************************************************************************
+    //**************************************         Configuring PID parameters, aggressive and conservative              ********************************************************
+    //****************************************************************************************************************************************************************************
+      
+    //turn the PID on
+    myPID.SetMode(AUTOMATIC);   
+   
+   //*************************************************               Upper Graph drawing functions          ********************************************************************     
+
+
+    GLCD.FillRect( 3,  2,   2,  8);  // Klein reg hoek om die Text beter te laat lyk, aan die linker kant
+    GLCD.DrawLine( 6,  2,  47,  2);  // Lyn bo die text om dit beter te laat lyk
+    GLCD.FillRect(78,  0,   2, 11);  // Klein reghoek om die temp en die status te skei.
+    GLCD.DrawLine( 0, 12, 126, 12);  // Lyn om 'n blokkie te maak
+
+
+   //*************************************************              Graph Structure drawing functions        ********************************************************************   
+
+    Graph_Drawing_Function();
+
+   //*************************************************             Onder die graph drawing functions        ********************************************************************   
+
+    GLCD.FillRect( 3, 53,   2,  8);  // Klein reg hoek om die Text beter te laat lyk, aan die linker kant
+    GLCD.DrawLine( 6, 53,  35, 53);  // Lyn bo die text om dit beter te laat lyk
+    GLCD.FillRect(71, 51,   2, 11);  // Klein reghoek om die tyd en die ??? te skei.  
+    GLCD.DrawLine( 0, 51, 126, 51);  // Lyn om 'n blokkie te maak 
+ 
+    GLCD.SelectFont(System5x7, WHITE);                                                                       // you can also make your own fonts, see playground for details  +
+    GLCD.CursorToXY(6, 3);
+    GLCD.print("STATUS:");                                                                                   // Status Header
+   
+    GLCD.SelectFont(System5x7, BLACK);
+    GLCD.CursorToXY(51, 3);
+    GLCD.print(Status);                                                                                      // Print status or reflow cycle
+
+    GLCD.CursorToXY(84, 3);  
+    GLCD.print("T:");
+
+
+    Temp_Printing();
+    
+    
+    GLCD.DrawCircle(GLCD.Width/2 +53,GLCD.CenterY- 28, min(GLCD.CenterX/2 + 51, GLCD.CenterY)-31);            // Draws a little circle to be the Degree symbol
+  
+    GLCD.CursorToXY(GLCD.Width/2 +56, 3);                                                                     // Print unit of measurent
+    GLCD.print("°C");  
+  
+    //********************************************************                        Printing intial TIME                        *******************************************************************************   
+
+    GLCD.SelectFont(System5x7, WHITE);                                                                        // Print time header
+    GLCD.CursorToXY(GLCD.Width/2 - 58, 54);
+    GLCD.print("TIME:");
+
+    GLCD.SelectFont(System5x7, BLACK);    
+    GLCD.CursorToXY(51, 54);
+    GLCD.print(":");
+  
+
+    
+    //***********************************************************************************************************************************************************************************************************  
+    // If you enter the run program function then you wouldn't have tested if seconds are >= 60 so as to print the time in minutes, so here you retest it if the user goes straigt into running the program.
+    //***********************************************************************************************************************************************************************************************************
+
+    Time_Printing();           
+      
+    //***********************************************************************************************************************************************************************************************************  
+    // Testing whether Temp >= PREH_Temp so as to start the count down process etc.
+    //***********************************************************************************************************************************************************************************************************
+    
+    ENT_Through_Status = 1;
+    Setpoint = PREH_Temp;
+    
+    PID_Calculations();  // Call the PID Calculation function.    
+
+   while ( Temp < PREH_Temp )     
+   {
+     Temp = analogRead(sensorPin) / 3.4133;   /// Devides 1024 / 300 to range the ADC value to the actual temperature range. (1024 = 3 V as set by AREF since the max output voltage from the thermocouple amp is 3 V for 300 Deg C)         
+     Temp_Printing();
+     
+     X_Status_Limit = 23;
+     Graphing_Function();       
+   }
+
+
+
+
+    //***********************************************************************************************************************************************************************************************************
+
+    if ( Temp >= PREH_Temp )
+    {
+      
+     while( ENT_Through_Status == 1)    
+     {            
+       Temp = analogRead(sensorPin) / 3.4133;   /// Devides 1024 / 300 to range the ADC value to the actual temperature range. (1024 = 3 V as set by AREF since the max output voltage from the thermocouple amp is 3 V for 300 Deg C)        
+       
+       Setpoint = PREH_Temp;
+       
+       Graphing_Function(); 
+       X_Status_Limit = 37;
+     
+       PID_Calculations();
+
+       Seconds--;
+       delay(200);       
+       
+       Temp_Printing();
+       Time_Printing();             
+
+       while( Minutes == 0 && Seconds <= 0 )                                                      
+       {         
+         Status = Status2;
+         GLCD.CursorToXY(51, 3);
+         GLCD.print(Status); 
+         
+         Temp = analogRead(sensorPin) / 3.4133;   /// Devides 1024 / 300 to range the ADC value to the actual temperature range. (1024 = 3 V as set by AREF since the max output voltage from the thermocouple amp is 3 V for 300 Deg C)  
+     
+         Setpoint = HEAT_Temp;         
+
+         Graphing_Function(); 
+         X_Status_Limit = 46;
+
+         PID_Calculations(); // Call the PID Calculation function.     
+         
+         Temp_Printing();
+         Time_Printing();
+         
+         //***********************************************************************************************************************************************************************************************************
+         
+         if ( Temp >= HEAT_Temp )
+         {
+           ENT_Through_Status++;
+
+           while ( ENT_Through_Status == 2 )
+           {
+             Minutes  = HEAT_Keep_MIN;    
+             Seconds  = HEAT_Keep_SEC;
+             
+             Temp_Printing();
+             Time_Printing();
+           
+             Temp = analogRead(sensorPin) / 3.4133;   /// Devides 1024 / 300 to range the ADC value to the actual temperature range. (1024 = 3 V as set by AREF since the max output voltage from the thermocouple amp is 3 V for 300 Deg C)  
+
+             Setpoint = HEAT_Temp;        
+
+             Graphing_Function();
+             X_Status_Limit = 60;
+
+             PID_Calculations();  // Call the PID Calculation function.             
+             
+             HEAT_Keep_SEC--;
+             delay(200);
+
+                       
+             while( Minutes == 0 && Seconds == 0 )                                                      
+             {
+         
+               Status  = Status3;
+               GLCD.CursorToXY(51, 3);
+               GLCD.print(Status); 
+         
+               Temp = analogRead(sensorPin) / 3.4133;   /// Devides 1024 / 300 to range the ADC value to the actual temperature range. (1024 = 3 V as set by AREF since the max output voltage from the thermocouple amp is 3 V for 300 Deg C)  
+             
+               Setpoint = SLDR_Temp;               
+
+               Graphing_Function();
+               X_Status_Limit = 69;
+
+               PID_Calculations();  // Call the PID Calculation function.               
+                 
+               Temp_Printing();
+               Time_Printing();
+         
+               //***********************************************************************************************************************************************************************************************************
+         
+               if ( Temp >= SLDR_Temp )
+               {
+                 ENT_Through_Status++;
+
+                 while ( ENT_Through_Status == 3 )
+                 {
+                   Minutes  = SLDR_Keep_MIN;    
+                   Seconds  = SLDR_Keep_SEC;
+             
+                   Temp_Printing();
+                   Time_Printing();
+           
+                   Temp = analogRead(sensorPin) / 3.4133;   /// Devides 1024 / 300 to range the ADC value to the actual temperature range. (1024 = 3 V as set by AREF since the max output voltage from the thermocouple amp is 3 V for 300 Deg C)  
+                 
+                   Setpoint = SLDR_Temp;               
+    
+                   Graphing_Function();
+                   X_Status_Limit = 78;
+                   
+                   PID_Calculations();  // Call the PID Calculation function.                                  
+                   
+                   SLDR_Keep_SEC--;
+                   delay(200);
+
+                       
+                   while( Minutes == 0 && Seconds == 0 )                                                      
+                   {                                 
+                       while ( Temp >= KEEP_Temp )
+                        {
+                         Temp = analogRead(sensorPin) / 3.4133;   /// Devides 1024 / 300 to range the ADC value to the actual temperature range. (1024 = 3 V as set by AREF since the max output voltage from the thermocouple amp is 3 V for 300 Deg C)  
+
+                         Setpoint = 0;        
+
+                         Graphing_Function();
+                         X_Status_Limit = 94;
+                         
+                         PID_Calculations();  // Call the PID Calculation function.                      
+                         
+                         Status  = Status4;
+                         GLCD.CursorToXY(51, 3);
+                         GLCD.print(Status);  
+                          
+                         
+                          Minutes  = 0;    
+                          Seconds  = KEEP_SEC;
+
+                          KEEP_SEC++;
+                          delay(200);
+                          
+                          Temp_Printing();
+                          Time_Printing();
+                      
+                        }
+                        
+                        while ( Temp >= COOL_Temp)
+                        {
+                          Temp = analogRead(sensorPin) / 3.4133;   /// Devides 1024 / 300 to range the ADC value to the actual temperature range. (1024 = 3 V as set by AREF since the max output voltage from the thermocouple amp is 3 V for 300 Deg C)                         
+                          digitalWrite(FanPin, HIGH);
+                          
+                          Graphing_Function();
+                          X_Status_Limit = 103;
+                   
+                              
+                          Status  = Status5;
+                          GLCD.CursorToXY(51, 3);
+                          GLCD.print(Status);                                         
+                                  
+                          Minutes  = 0;    
+                          Seconds  = COOL_SEC;
+      
+                          COOL_SEC++;
+                          delay(200);
+                                
+                          Temp_Printing();
+                          Time_Printing();
+      
+                          while ( Temp >= 0 && Temp < COOL_Temp )
+                          {                                                            
+                            Temp = analogRead(sensorPin) / 3.4133;   /// Devides 1024 / 300 to range the ADC value to the actual temperature range. (1024 = 3 V as set by AREF since the max output voltage from the thermocouple amp is 3 V for 300 Deg C)                      
+                            digitalWrite(FanPin, LOW);
+                            
+                            Graphing_Function();
+                            X_Status_Limit = 121;
+
+                            Status  = Status6;
+                            GLCD.CursorToXY(51, 3);
+                            GLCD.print(Status);  
+                                                               
+                            Minutes  = 0;    
+                            Seconds  = COOL_SEC;
+        
+                            COOL_SEC++;
+                            delay(200);
+                                  
+                            Temp_Printing();
+                            Time_Printing();
+                            
+                            while( Minutes >= 60 )
+                            {
+
+                              Seconds = 0;                              
+                            }
+                           
+                          }                          
+
+                   } 
+                 } 
+               }
+              }
+             }
+           }
+        }     
+      }     
+      
+    }
+    }
+  }
+  
+  //****************************************************************************************************************************************************************************
+  //**************************************************                          Graphing Functions                      ********************************************************
+  //****************************************************************************************************************************************************************************  
+
+  void Graph_Drawing_Function()
+  {
+    
+    GLCD.DrawLine( 4, 48, 122, 48);      // Graph X line
+    GLCD.DrawLine( 4, 15,   4, 48);      // Graph Y line
+  
+    GLCD.DrawLine( 4, 17,   6, 17);      // Graph indicator line
+    GLCD.DrawLine( 4, 22,   5, 22);      // Graph indicator line
+  
+    GLCD.DrawLine( 4, 27,   6, 27);      // Graph indicator line
+    GLCD.DrawLine( 4, 32,   5, 32);      // Graph indicator line
+  
+    GLCD.DrawLine( 4, 37,   6, 37);      // Graph indicator line
+    GLCD.DrawLine( 4, 42,   5, 42);      // Graph indicator line
+        
+    GLCD.DrawLine(   4,  48,   23,  32);  // PREH Line
+    GLCD.DrawLine(  23,  32,   37,  32);  // PREH KEEP Time Line
+    
+    GLCD.DrawLine(  37,  32,   46,  24);  // HEAT Line
+    GLCD.DrawLine(  46,  24,   60,  24);  // HEAT KEEP Time Line
+    
+    GLCD.DrawLine(  60,  24,   69,  18);  // SLDR Line
+    GLCD.DrawLine(  69,  18,   78,  18);  // SLDR KEEP Time line
+    
+    GLCD.DrawLine(  78,  18,   94,  25);  // KEEP Line
+    
+    GLCD.DrawLine(  94,  25,  103,  36);  // COOL line
+    
+    GLCD.DrawLine( 103,  36,  121,  48);  // DONE line
+  }
+
+
+  //****************************************************************************************************************************************************************************
+  //**************************************************                          Graphing Functions                      ********************************************************
+  //****************************************************************************************************************************************************************************  
+  
+  void Graphing_Function()
+  {      
+
+      if ( Temp < Temp_Step && Temp < Previous_Temp_Step_State )
+      {
+        Y++;                    
+        Temp_Step = Temp_Step - 10;
+
+        if ( Temp_Step < Temp )
+        {
+           Previous_Temp_Step_State = Temp_Step; 
+           Previous_Temp_Step_State = Previous_Temp_Step_State + 10;
+        }
+   
+        if ( Y >= 48 )    
+        {
+          Y = 48; 
+        }  
+  
+        GLCD.SetDot(X,Y, BLACK);            
+      }
+
+            
+  //*********************************************************************************************************************************************************************************************************************************************
+
+      if ( Temp > Temp_Step && Temp > Previous_Temp_Step_State )
+      {
+        Y--;
+        Temp_Step = Temp_Step + 10;
+         
+        if ( Temp_Step > Temp )
+        {
+           Previous_Temp_Step_State = Temp_Step; 
+           Previous_Temp_Step_State = Previous_Temp_Step_State - 10;
+        }
+       
+        if ( Y <= 15 )    
+        {
+          Y = 15; 
+        }
+         
+        GLCD.SetDot(X,Y, BLACK);        
+      }
+         
+  //*********************************************************************************************************************************************************************************************************************************************
+
+      if ( ( Temp <= Temp_Step && Temp >= Previous_Temp_Step_State ) || ( Temp >= Temp_Step && Temp <= Previous_Temp_Step_State ) )
+      {
+        GLCD.SetDot(X,Y, BLACK);   
+      }                 
+         
+       X++; 
+       
+       if ( X >= X_Status_Limit )
+       {
+         X = X_Status_Limit;
+       }
+       
+       delay(200);  
+  }
+ 
+ 
+  //****************************************************************************************************************************************************************************
+  //**************************************************                   PID Calculation to switch Output               ********************************************************
+  //****************************************************************************************************************************************************************************  
+  
+  void PID_Calculations()
+  {    
+    Input = Temp;
+//    Temp = Input;
+    
+    myPID.Compute();
+    /************************************************
+     * turn the output pin on/off based on pid output
+     ************************************************/
+    if( millis() - windowStartTime > WindowSize )
+    { 
+      //time to shift the Relay Window
+      windowStartTime += WindowSize;
+    }
+    
+    if( Output < millis() - windowStartTime ) 
+    {
+      digitalWrite(RelayPin,HIGH);
+    }
+    
+    else 
+    {
+      digitalWrite(RelayPin,LOW); 
+    }
+  }
+ 
+ 
+  //****************************************************************************************************************************************************************************
+  //**************************************************                          TEMP Print spacing                      ********************************************************
+  //****************************************************************************************************************************************************************************  
+ 
+ 
+  void Temp_Printing()
+  {  
+    GLCD.CursorToXY(94, 3);      
+   
+    if ( Temp <= 0 )
+    {
+      Temp = 0;
+      GLCD.print("  ");
+      GLCD.print(Temp);
+    }
+
+    if ( Temp < 10 && Temp > 0 )
+    {
+      GLCD.print("  ");
+      GLCD.print(Temp);
+    }
+    
+    if ( Temp < 100 && Temp > 10  )
+    {
+      GLCD.print(" ");
+      GLCD.print(Temp);
+    }
+
+    if ( Temp >= 100 )
+    {
+      GLCD.print(Temp);                                                                                         // Print the Temp. reading
+    }
+  }
+
+  //****************************************************************************************************************************************************************************
+  //**************************************************                        TIME Print spacing                        ********************************************************
+  //****************************************************************************************************************************************************************************  
+
+  void Time_Printing()
+  {
+    while (Seconds >= 60)
+    {
+      Minutes++;
+      Seconds = Seconds - 60;                                                      
+    }
+                                       
+    while (Seconds < 0)
+    {
+      Minutes--;
+      Seconds = Seconds + 60;  
+    }     
+
+    if (Minutes < 10)
+    {
+      GLCD.CursorToXY(38, 54);
+      GLCD.print("0");
+      GLCD.print(Minutes);        
+    }
+                                                        
+    if (Minutes >= 10)
+    {
+      GLCD.CursorToXY(38, 54);      
+      GLCD.print(Minutes);
+    }                                                              
+                                                     
+    if (Seconds < 10)
+    {
+      GLCD.CursorToXY(57, 54);
+      GLCD.print("0");
+      GLCD.print(Seconds);
+    }
+                
+    if (Seconds >= 10)
+    {
+      GLCD.CursorToXY(57, 54);
+      GLCD.print(Seconds);
+    }   
+  }
+
+  
+  //****************************************************************************************************************************************************************************
+  //**************************************************                          View Program                            ********************************************************
+  //****************************************************************************************************************************************************************************  
+  
+   
+  void View_Program() 
+  {   
+   
+  //*************************************************           Changing seconds to minutes and seconds     ********************************************************************   
+  
+    while ( PREH_Keep_SEC >= 60 )
+    {
+      PREH_Keep_MIN++;
+      PREH_Keep_SEC = PREH_Keep_SEC - 60;
+    }
+
+    while ( HEAT_Keep_SEC >= 60 )
+    {
+      HEAT_Keep_MIN++;
+      HEAT_Keep_SEC = HEAT_Keep_SEC - 60;
+    }
+
+    while ( SLDR_Keep_SEC >= 60 )
+    {
+      SLDR_Keep_MIN++;
+      SLDR_Keep_SEC = SLDR_Keep_SEC - 60;
+    }
+
+    GLCD.DrawRect( 0,  0, 127, 63);  
+    GLCD.DrawLine( 0, 51, 126, 51);   
+    GLCD.DrawLine( 42, 10, 42, 50);  
+    GLCD.DrawLine( 83, 10, 83, 50);
+    
+  //*************************************************                        Printing Headers               ********************************************************************   
+ 
+    GLCD.FillRect( 1, 1,   125,  8);
+    GLCD.SelectFont(System5x7, WHITE);                                                                      
+    GLCD.CursorToXY(8, 2);
+    GLCD.print("STAGE");                                                                                   
+ 
+    GLCD.SelectFont(System5x7, WHITE); 
+    GLCD.CursorToXY(51, 2);     // 60
+    GLCD.print("T");
+    GLCD.CursorToXY(59, 2);  
+    GLCD.print(":");
+    GLCD.DrawCircle(66, 3, min(GLCD.CenterX/2 + 51, GLCD.CenterY)-31,WHITE);    
+    GLCD.CursorToXY(69, 2);
+    GLCD.print("C");  
+    GLCD.CursorToXY(90, 2);
+    GLCD.print("S:");  
+    GLCD.CursorToXY(102, 2);
+    GLCD.print("MIN");      
+
+  //*************************************************                         Printing PREH                 ********************************************************************   
+  
+    GLCD.SelectFont(System5x7); 
+    GLCD.CursorToXY(11, 11);
+    GLCD.print("PREH"); 
+    
+    GLCD.CursorToXY(54, 11);
+    GLCD.print(PREH_Temp);     
+
+    GLCD.CursorToXY(91, 11);    
+    
+    if (PREH_Keep_MIN < 10)
+    {
+      GLCD.print("0");
+      GLCD.print(PREH_Keep_MIN);
+    }
+
+    else
+    {
+      GLCD.print(PREH_Keep_MIN);
+    }
+    
+    GLCD.CursorToXY(103, 11);    
+    GLCD.print(":");     
+    GLCD.CursorToXY(109, 11);    
+    
+    if (PREH_Keep_SEC < 10)
+    {
+      GLCD.print("0");
+      GLCD.print(PREH_Keep_SEC);
+    }
+    
+    else
+    {
+      GLCD.print(PREH_Keep_SEC);
+    }
+       
+  //*************************************************                          Printing HEAT                ********************************************************************
+  
+    GLCD.CursorToXY(11, 19);
+    GLCD.print("HEAT");   
+    
+    GLCD.CursorToXY(54, 19);
+    GLCD.print(HEAT_Temp);     
+
+    GLCD.CursorToXY(91, 19);    
+    
+    if (HEAT_Keep_MIN < 10)
+    {
+      GLCD.print("0");
+      GLCD.print(HEAT_Keep_MIN);
+    }
+    
+    else
+    {
+      GLCD.print(HEAT_Keep_MIN);
+    }
+    
+    GLCD.CursorToXY(103, 19);    
+    GLCD.print(":");     
+    GLCD.CursorToXY(109, 19);    
+    
+    if (HEAT_Keep_SEC < 10)
+    {
+      GLCD.print("0");
+      GLCD.print(HEAT_Keep_SEC);
+    }
+
+    else
+    {
+      GLCD.print(HEAT_Keep_SEC);
+    }
+
+  //*************************************************                          Printing SLDR                ********************************************************************    
+  
+    GLCD.CursorToXY(11, 27);
+    GLCD.print("SLDR");   
+    
+    GLCD.CursorToXY(54, 27);
+    GLCD.print(SLDR_Temp);     
+
+    GLCD.CursorToXY(91, 27);    
+    
+    if (SLDR_Keep_MIN < 10)
+    {
+      GLCD.print("0");
+      GLCD.print(SLDR_Keep_MIN);
+    }
+    
+    else
+    {
+      GLCD.print(SLDR_Keep_MIN);
+    }
+    
+    GLCD.CursorToXY(103, 27);    
+    GLCD.print(":");     
+    GLCD.CursorToXY(109, 27);    
+    
+    if (SLDR_Keep_SEC < 10)
+    {
+      GLCD.print("0");
+      GLCD.print(SLDR_Keep_SEC);
+    }
+    
+    else
+    {
+      GLCD.print(SLDR_Keep_SEC);    
+    }
+
+  //*************************************************                      Printing KEEP & COOL             ********************************************************************   
+  
+    GLCD.CursorToXY(11, 35);
+    GLCD.print("KEEP");   
+
+    GLCD.CursorToXY(54, 35);
+    GLCD.print(KEEP_Temp); 
+    GLCD.CursorToXY(91, 35);    
+    GLCD.print("--:--");   
+    
+    GLCD.CursorToXY(11, 43);
+    GLCD.print("COOL");   
+  
+    GLCD.CursorToXY(54, 43);
+    GLCD.print(COOL_Temp);    
+    GLCD.CursorToXY(91, 43);    
+    GLCD.print("--:--");   
+}
+
+  //****************************************************************************************************************************************************************************
+  //***************************************************                         Edit Programs                            *******************************************************
+  //****************************************************************************************************************************************************************************
+
+ void Edit_Program()
+ {   
+  //*************************************                    EDIT PROGRAM PREH TEMP                 *****************************************************************************
+    
+    while( ENT_Through_Preset == 1 )
+    {
+      Read_Buttons();                                           
+                 
+      GLCD.CursorToXY(48, 11);                 
+      GLCD.print("*"); 
+                  
+      GLCD.CursorToXY(73, 11);
+      GLCD.print("*"); 
+                 
+      GLCD.CursorToXY(54, 11);                 
+      GLCD.print(PREH_Temp);                   
+                                                 
+      if ( UP_Button_State == LOW )
+      {
+        PREH_Temp++; 
+        digitalWrite(ledPin, HIGH);
+        delay(150); 
+                  
+        if (  PREH_Temp >= 350 )
+        {
+          PREH_Temp = 350; 
+        }  
+      }
+                
+      UP_Button_State = HIGH;
+      digitalWrite(ledPin, LOW); 
+               
+      if ( DWN_Button_State == HIGH )
+      {
+        PREH_Temp--; 
+        digitalWrite(ledPin, HIGH); 
+        delay(150); 
+   
+        if (  PREH_Temp <= 100 )
+        {
+          PREH_Temp = 100; 
+        }              
+      }    
+                    
+      DWN_Button_State = LOW; 
+      digitalWrite(ledPin, LOW); 
+                                     
+      if ( ENT_Button_State != Previous_ENT_Button_State && ENT_Button_State == HIGH )               
+      {
+        ENT_Through_Preset++;                 
+        digitalWrite(ledPin, HIGH); 
+        delay(150);               
+      }    
+                    
+      Previous_ENT_Button_State = ENT_Button_State; 
+      digitalWrite(ledPin, LOW);                  
+                   
+  //*************************************                    EDIT PROGRAM HEAT TEMP                 ***************************************************************************
+                   
+      while( ENT_Through_Preset == 2 )
+      {
+        Read_Buttons();
+              
+        GLCD.FillRect( 48, 11, 5, 8,        WHITE );                     
+        GLCD.FillRect( 73, 11, 5, 8,        WHITE );
+                         
+        GLCD.CursorToXY(48, 19);                 
+        GLCD.print("*"); 
+                        
+        GLCD.CursorToXY(73, 19);
+        GLCD.print("*");   
+   
+        GLCD.CursorToXY(54, 19);                 
+        GLCD.print(HEAT_Temp);                          
+                                                      
+        if ( UP_Button_State == LOW )
+        {
+          HEAT_Temp++; 
+          digitalWrite(ledPin, HIGH);
+          delay(150); 
+                            
+          if (  HEAT_Temp >= 350 )
+          {
+            HEAT_Temp = 350; 
+          } 
+        }
+                          
+        UP_Button_State = HIGH;
+        digitalWrite(ledPin, LOW); 
+                         
+        if ( DWN_Button_State == HIGH )
+        {
+          HEAT_Temp--; 
+          digitalWrite(ledPin, HIGH); 
+          delay(150);  
+                
+          if (  HEAT_Temp <= 100 )
+          {
+            HEAT_Temp = 100; 
+          }                                               
+        }    
+                              
+        DWN_Button_State = LOW; 
+        digitalWrite(ledPin, LOW); 
+                                               
+        if ( ENT_Button_State != Previous_ENT_Button_State && ENT_Button_State == HIGH )               
+        {
+          ENT_Through_Preset++;                 
+          digitalWrite(ledPin, HIGH); 
+          delay(150);               
+        }    
+                              
+        Previous_ENT_Button_State = ENT_Button_State; 
+        digitalWrite(ledPin, LOW);   
+                        
+  //*************************************                    EDIT PROGRAM SLDR TEMP                 ***************************************************************************
+                        
+        while( ENT_Through_Preset == 3 )
+        {
+          Read_Buttons();
+                        
+          GLCD.FillRect( 48, 19, 5, 8,        WHITE );                     
+          GLCD.FillRect( 73, 19, 5, 8,        WHITE );
+                                   
+          GLCD.CursorToXY(48, 27);                 
+          GLCD.print("*"); 
+                                  
+          GLCD.CursorToXY(73, 27);
+          GLCD.print("*");   
+             
+          GLCD.CursorToXY(54, 27);                 
+          GLCD.print(SLDR_Temp);                          
+                                                                
+          if ( UP_Button_State == LOW )
+          {
+            SLDR_Temp++; 
+            digitalWrite(ledPin, HIGH);
+            delay(150);  
+                                       
+            if (  SLDR_Temp >= 350 )
+            {
+              SLDR_Temp = 350; 
+            }                                        
+          }
+                                    
+          UP_Button_State = HIGH;
+          digitalWrite(ledPin, LOW); 
+                                   
+          if ( DWN_Button_State == HIGH )
+          {
+            SLDR_Temp--; 
+            digitalWrite(ledPin, HIGH); 
+            delay(150); 
+                         
+            if (  SLDR_Temp <= 100 )
+            {
+              SLDR_Temp = 100; 
+            }                                         
+          }    
+                                        
+          DWN_Button_State = LOW; 
+          digitalWrite(ledPin, LOW); 
+                                                         
+          if ( ENT_Button_State != Previous_ENT_Button_State && ENT_Button_State == HIGH )               
+          {
+            ENT_Through_Preset++;                 
+            digitalWrite(ledPin, HIGH); 
+            delay(150);               
+          }    
+                                        
+          Previous_ENT_Button_State = ENT_Button_State; 
+          digitalWrite(ledPin, LOW);  
+                                   
+  //*************************************                    EDIT PROGRAM KEEP TEMP                 ***************************************************************************
+          while( ENT_Through_Preset == 4 )
+          {
+            Read_Buttons();
+                                
+            GLCD.FillRect( 48, 27, 5, 8,        WHITE );                     
+            GLCD.FillRect( 73, 27, 5, 8,        WHITE );
+                                           
+            GLCD.CursorToXY(48, 35);                 
+            GLCD.print("*"); 
+                                          
+            GLCD.CursorToXY(73, 35);
+            GLCD.print("*");   
+                     
+            GLCD.CursorToXY(54, 35);                 
+            GLCD.print(KEEP_Temp);                          
+                                                                        
+            if ( UP_Button_State == LOW )
+            {
+              KEEP_Temp++; 
+              digitalWrite(ledPin, HIGH);
+              delay(150);  
+                                               
+              if (  KEEP_Temp >= 350 )
+              {
+                KEEP_Temp = 350; 
+              }                                               
+            }
+                                            
+            UP_Button_State = HIGH;
+            digitalWrite(ledPin, LOW); 
+                                           
+            if ( DWN_Button_State == HIGH )
+            {
+              KEEP_Temp--; 
+              digitalWrite(ledPin, HIGH); 
+              delay(150);  
+                                  
+              if (  KEEP_Temp <= 100 )
+              {
+                KEEP_Temp = 100; 
+              }                                                 
+            }    
+                                                
+            DWN_Button_State = LOW; 
+            digitalWrite(ledPin, LOW); 
+                                                                 
+            if ( ENT_Button_State != Previous_ENT_Button_State && ENT_Button_State == HIGH )               
+            {
+              ENT_Through_Preset++;                 
+              digitalWrite(ledPin, HIGH); 
+              delay(150);               
+            }    
+                                                
+            Previous_ENT_Button_State = ENT_Button_State; 
+            digitalWrite(ledPin, LOW); 
+                                        
+  //*************************************                    EDIT PROGRAM COOL TEMP                 ***************************************************************************
+                                        
+            while( ENT_Through_Preset == 5 )
+            {
+              Read_Buttons();
+                                        
+              GLCD.FillRect( 48, 35, 5, 8,        WHITE );                     
+              GLCD.FillRect( 73, 35, 5, 8,        WHITE );
+                                                   
+              GLCD.CursorToXY(48, 43);                 
+              GLCD.print("*"); 
+                                                  
+              GLCD.CursorToXY(73, 43);
+              GLCD.print("*");   
+                             
+              GLCD.CursorToXY(54, 43);                 
+              GLCD.print(COOL_Temp);                          
+                                                                                
+              if ( UP_Button_State == LOW )
+              {
+                COOL_Temp++; 
+                digitalWrite(ledPin, HIGH);
+                delay(150);  
+                                                       
+                if (  COOL_Temp >= 350 )
+                {
+                  COOL_Temp = 350; 
+                }                                                         
+              }
+                                                    
+              UP_Button_State = HIGH;
+              digitalWrite(ledPin, LOW); 
+                                                   
+              if ( DWN_Button_State == HIGH )
+              {
+                COOL_Temp--; 
+                digitalWrite(ledPin, HIGH); 
+                delay(150);  
+                                          
+                if (  COOL_Temp <= 100 )
+                {
+                  COOL_Temp = 100; 
+                }                                                         
+              }    
+                                                        
+              DWN_Button_State = LOW; 
+              digitalWrite(ledPin, LOW); 
+                                                                         
+              if ( ENT_Button_State != Previous_ENT_Button_State && ENT_Button_State == HIGH )               
+              {
+                ENT_Through_Preset++;                 
+                digitalWrite(ledPin, HIGH);
+                delay(150);               
+              }    
+                                                        
+              Previous_ENT_Button_State = ENT_Button_State; 
+              digitalWrite(ledPin, LOW); 
+                                                
+  //*************************************                                                       EDIT PROGRAM HEAT KEEP TIME                                      ***************************************************************************
+                                                
+              while( ENT_Through_Preset == 6 )
+              {
+                Read_Buttons();
+                                                     
+                GLCD.FillRect( 48, 43, 5, 7,        WHITE );                     
+                GLCD.FillRect( 73, 43, 5, 7,        WHITE );
+                                                                   
+                GLCD.CursorToXY(85, 11);                 
+                GLCD.print("*"); 
+                                                                  
+                GLCD.CursorToXY(121, 11);
+                GLCD.print("*");                                                                      
+                                                            
+  //*************************************                                           Testing up down buttons to increment up down counter.                            ***************************************************************************
+                                                                                                
+                if ( UP_Button_State == LOW )
+                {
+                  PREH_Keep_SEC++; 
+                  digitalWrite(ledPin, HIGH);
+                  delay(150);
+                }
+                                                                    
+                UP_Button_State = HIGH;
+                digitalWrite(ledPin, LOW); 
+                                                                   
+                if ( DWN_Button_State == HIGH )
+                {
+                  PREH_Keep_SEC--; 
+                  digitalWrite(ledPin, HIGH); 
+                  delay(150);
+                }    
+                                                                        
+                DWN_Button_State = LOW; 
+                digitalWrite(ledPin, LOW); 
+                                                     
+  //************    Testing whether seconds > 60 to increment the minutes and testing whether seconds < 10 to print a zero before the value to align everything and lastly testing whether seconds < 0 to decrement the minutes  *****************
+
+                GLCD.CursorToXY(85, 11);  
+                                                     
+                while (PREH_Keep_SEC >= 60)
+                {
+                  PREH_Keep_MIN++;
+                  PREH_Keep_SEC = PREH_Keep_SEC - 60;
+
+                  if (HEAT_Keep_MIN < 10)
+                  {
+                    GLCD.print("0");
+                    GLCD.print(HEAT_Keep_MIN);
+                  }
+                                                        
+                  else
+                  {
+                    GLCD.print(HEAT_Keep_MIN);
+                  }                                                         
+                }
+                                                     
+                while (PREH_Keep_SEC < 0)
+                {
+                  PREH_Keep_MIN--;
+                  PREH_Keep_SEC = PREH_Keep_SEC + 60;  
+                }                                                                                                             
+
+                GLCD.CursorToXY(91, 11);
+
+                if (HEAT_Keep_MIN < 10)
+                {
+                  GLCD.print("0");
+                  GLCD.print(PREH_Keep_MIN);
+                }
+                                                        
+                else
+                {
+                  GLCD.print(PREH_Keep_MIN);
+                } 
+                                                     
+                GLCD.CursorToXY(109, 11);    
+                                                     
+                if (PREH_Keep_SEC < 10)
+                {
+                  GLCD.print("0");
+                  GLCD.print(PREH_Keep_SEC);
+                }
+                
+                else
+                {
+                  GLCD.print(PREH_Keep_SEC);
+                }
+                                                                                                                          
+                if( PREH_Keep_MIN == 0 )                                                      
+                {
+                  while ( PREH_Keep_SEC == 0 )
+                  {
+                    Read_Buttons();
+                                                         
+                    PREH_Keep_SEC = 0; 
+                                                         
+                    if ( UP_Button_State == LOW )
+                    {
+                      PREH_Keep_SEC++; 
+                      digitalWrite(ledPin, HIGH);
+                      delay(150);
+                    }
+                                                                        
+                    UP_Button_State = HIGH;
+                    digitalWrite(ledPin, LOW); 
+                  }
+                }
+                
+                if ( ENT_Button_State != Previous_ENT_Button_State && ENT_Button_State == HIGH )               
+                {
+                  ENT_Through_Preset++;                 
+                  digitalWrite(ledPin, HIGH); 
+                  delay(150);               
+                }    
+                                                          
+                Previous_ENT_Button_State = ENT_Button_State; 
+                digitalWrite(ledPin, LOW);                                                      
+                                                   
+  //*************************************                                                       EDIT PROGRAM HEAT KEEP TIME                                      ***************************************************************************
+                                                
+                while( ENT_Through_Preset == 7 )
+                {
+                  Read_Buttons();
+                                                        
+                  GLCD.FillRect(  85, 11, 5, 7,        WHITE );                     
+                  GLCD.FillRect( 121, 11, 5, 7,        WHITE );
+                                                                   
+                  GLCD.CursorToXY(85, 19);                 
+                  GLCD.print("*"); 
+                                                                  
+                  GLCD.CursorToXY(121, 19);
+                  GLCD.print("*");                                                                      
+                                                            
+  //*************************************                                           Testing up down buttons to increment up down counter.                            ***************************************************************************
+                                                                                                
+                  if ( UP_Button_State == LOW )
+                  {
+                    HEAT_Keep_SEC++; 
+                    digitalWrite(ledPin, HIGH);
+                    delay(150);
+                  }
+                                                                    
+                  UP_Button_State = HIGH;
+                  digitalWrite(ledPin, LOW); 
+                                                                   
+                  if ( DWN_Button_State == HIGH )
+                  {
+                    HEAT_Keep_SEC--; 
+                    digitalWrite(ledPin, HIGH); 
+                    delay(150);
+                  }    
+                                                                        
+                  DWN_Button_State = LOW; 
+                  digitalWrite(ledPin, LOW); 
+                                                     
+  //************    Testing whether seconds > 60 to increment the minutes and testing whether seconds < 10 to print a zero before the value to align everything and lastly testing whether seconds < 0 to decrement the minutes  *******************
+
+                  GLCD.CursorToXY(85, 19);  
+                                                     
+                  while (HEAT_Keep_SEC >= 60)
+                  {
+                    HEAT_Keep_MIN++;
+                    HEAT_Keep_SEC = HEAT_Keep_SEC - 60;
+
+                    if (HEAT_Keep_MIN < 10)
+                    {
+                      GLCD.print("0");
+                      GLCD.print(HEAT_Keep_MIN);
+                    }
+                                                        
+                    else
+                    {
+                      GLCD.print(HEAT_Keep_MIN);
+                    }                                                         
+                  }
+                                                     
+                  while (HEAT_Keep_SEC < 0)
+                  {
+                    HEAT_Keep_MIN--;
+                    HEAT_Keep_SEC = HEAT_Keep_SEC + 60;  
+                  }                                                                                                             
+
+                  GLCD.CursorToXY(91, 19);
+
+                  if (HEAT_Keep_MIN < 10)
+                  {
+                    GLCD.print("0");                    
+                    GLCD.print(HEAT_Keep_MIN);
+                  }
+                                                        
+                  else
+                  {
+                    GLCD.print(HEAT_Keep_MIN);
+                  } 
+                                                     
+                  GLCD.CursorToXY(109, 19);    
+                                                     
+                  if (HEAT_Keep_SEC < 10)
+                  {
+                    GLCD.print("0");
+                    GLCD.print(HEAT_Keep_SEC);
+                  }
+                  
+                  else
+                  {
+                    GLCD.print(HEAT_Keep_SEC);
+                  }
+                                                                                                                          
+                  if( HEAT_Keep_MIN == 0 )                                                      
+                  {
+                    while ( HEAT_Keep_SEC == 0 )
+                    {
+                      Read_Buttons();
+                                                         
+                      HEAT_Keep_SEC = 0; 
+                                                         
+                      if ( UP_Button_State == LOW)
+                      {
+                        HEAT_Keep_SEC++; 
+                        digitalWrite(ledPin, HIGH);
+                        delay(150);
+                      }
+                                                                        
+                      UP_Button_State = HIGH;
+                      digitalWrite(ledPin, LOW); 
+                    }
+                  }
+                  
+                  if ( ENT_Button_State != Previous_ENT_Button_State && ENT_Button_State == HIGH )               
+                  {
+                    ENT_Through_Preset++;                 
+                    digitalWrite(ledPin, HIGH); 
+                    delay(150);               
+                   }    
+                                                          
+                   Previous_ENT_Button_State = ENT_Button_State; 
+                   digitalWrite(ledPin, LOW);                                                  
+                                                   
+                                                 
+  //*************************************                                                       EDIT PROGRAM SLDR KEEP TIME                                      ***************************************************************************
+                                                
+                    while( ENT_Through_Preset == 8 )
+                    {
+                      Read_Buttons();
+                                                        
+                      GLCD.FillRect(  85, 19, 5, 7,        WHITE );                     
+                      GLCD.FillRect( 121, 19, 5, 7,        WHITE );
+                                                                   
+                      GLCD.CursorToXY(85, 27);                 
+                      GLCD.print("*"); 
+                                                                  
+                      GLCD.CursorToXY(121, 27);
+                      GLCD.print("*");                                                                      
+                                                            
+  //*************************************                                           Testing up down buttons to increment up down counter.                             ***************************************************************************
+                                                                                                
+                      if ( UP_Button_State == LOW )
+                      {
+                        SLDR_Keep_SEC++; 
+                        digitalWrite(ledPin, HIGH);
+                        delay(150);
+                      }
+                                                                    
+                      UP_Button_State = HIGH;
+                      digitalWrite(ledPin, LOW); 
+                                                                   
+                      if ( DWN_Button_State == HIGH )
+                      {
+                        SLDR_Keep_SEC--; 
+                        digitalWrite(ledPin, HIGH); 
+                        delay(150);
+                      }    
+                                                                        
+                      DWN_Button_State = LOW; 
+                      digitalWrite(ledPin, LOW); 
+                                                     
+  //************    Testing whether seconds > 60 to increment the minutes and testing whether seconds < 10 to print a zero before the value to align everything and lastly testing whether seconds < 0 to decrement the minutes  *******************
+
+                      GLCD.CursorToXY(85, 27);  
+                                                     
+                      while (SLDR_Keep_SEC >= 60)
+                      {
+                        SLDR_Keep_MIN++;
+                        SLDR_Keep_SEC = SLDR_Keep_SEC - 60;
+
+                        if (SLDR_Keep_MIN < 10)
+                        {
+                          GLCD.print("0");
+                          GLCD.print(SLDR_Keep_MIN);
+                        }
+                                                        
+                        else
+                        {
+                          GLCD.print(SLDR_Keep_MIN);
+                        }                                                         
+                      }
+                                                                                                                           
+                      while (SLDR_Keep_SEC < 0)
+                      {
+                        SLDR_Keep_MIN--;
+                        SLDR_Keep_SEC = SLDR_Keep_SEC + 60;  
+                      }                                                                                                             
+
+                      GLCD.CursorToXY(91, 27);
+
+                      if (SLDR_Keep_MIN < 10)
+                      {
+                        GLCD.print("0");
+                        GLCD.print(SLDR_Keep_MIN);
+                      }
+                                                        
+                      else
+                      {
+                        GLCD.print(SLDR_Keep_MIN);
+                      } 
+                                                     
+                      GLCD.CursorToXY(109, 27);    
+                                                     
+                      if (SLDR_Keep_SEC < 10)
+                      {
+                        GLCD.print("0");
+                        GLCD.print(SLDR_Keep_SEC);
+                      }
+                      
+                      else
+                      {
+                        GLCD.print(SLDR_Keep_SEC);
+                      }
+                                                                                                                          
+                      if( SLDR_Keep_MIN == 0 )                                                      
+                      {
+                        while ( SLDR_Keep_SEC == 0 )
+                        {
+                          Read_Buttons();
+                                                         
+                          SLDR_Keep_SEC = 0; 
+                                                         
+                          if ( UP_Button_State == LOW )
+                          {
+                            SLDR_Keep_SEC++; 
+                            digitalWrite(ledPin, HIGH);
+                            delay(150);
+                          }
+                                                                        
+                          UP_Button_State = HIGH;
+                          digitalWrite(ledPin, LOW); 
+                        }
+                      }
+                      
+                      if ( ENT_Button_State != Previous_ENT_Button_State && ENT_Button_State == HIGH )               
+                      {
+                        ENT_Through_Preset = 0;    
+                        ENT_ESC_Selector  = 1;
+                        UP_DOWN_Selector = 1;      
+                      }    
+                                                          
+                      Previous_ENT_Button_State = ENT_Button_State; 
+                      digitalWrite(ledPin, LOW);                                                 
+                    }
+                }                    
+                }
+              }                                                                                                                                                                                                         
+            }                                            
+          }                                  
+        }                         
+      }               
+   } 
